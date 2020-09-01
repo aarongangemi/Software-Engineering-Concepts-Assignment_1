@@ -1,7 +1,10 @@
+ArenaListener.java
+ ArenaListener
+Droid.java
+ Droid
 App.java
  App
 JFXArena.java
  JFXArena
- JFXArena$SpawnRobot
-ArenaListener.java
- ArenaListener
+ JFXArena$MoveDroid
+ JFXArena$SpawnDroid

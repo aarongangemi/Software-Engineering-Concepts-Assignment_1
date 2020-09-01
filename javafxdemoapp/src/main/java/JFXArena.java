@@ -7,9 +7,15 @@ import javafx.scene.text.TextAlignment;
 
 import java.io.InputStream;
 import java.util.*;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import javafx.animation.PathTransition;
+import javafx.scene.Node;
+import javafx.scene.shape.Circle;
 
 /**
  * A JavaFX GUI element that displays a grid on which you can draw images, text and lines.
@@ -30,8 +36,11 @@ public class JFXArena extends Pane
     private double gridSquareSize; // Auto-calculated
     private Canvas canvas; // Used to provide a 'drawing surface'.
     private Object mutex;
-
+    private int robotCounter = 1;
+    private LinkedBlockingQueue<Droid> droidList = new LinkedBlockingQueue<>();
     private List<ArenaListener> listeners = null;
+    private long timePassed = 0;
+    private boolean isStarted = false;
     
     /**
      * Creates a new arena object, loading the robot image and initialising a drawing surface.
@@ -47,6 +56,7 @@ public class JFXArena extends Pane
                 gridTracker[row][column] = 0;
             }
         }
+        timePassed = System.currentTimeMillis();
         mutex = new Object();
         InputStream is = getClass().getClassLoader().getResourceAsStream(IMAGE_FILE);
         if(is == null)
@@ -59,11 +69,11 @@ public class JFXArena extends Pane
         canvas.heightProperty().bind(heightProperty());
         getChildren().add(canvas);
         ScheduleSpawn();
+        Thread t = new Thread(new MoveDroid(),"t1");
+        t.start();
     }
     
-    
-    
-    private class SpawnRobot implements Runnable{
+    private class SpawnDroid implements Runnable{
         private InputStream robotEnemyInputStream = getClass().getClassLoader().getResourceAsStream("rg1024-robot-carrying-things-4.png");
         private GraphicsContext gfx = canvas.getGraphicsContext2D();
         @Override
@@ -78,32 +88,254 @@ public class JFXArena extends Pane
                 robot2 = new Image(robotEnemyInputStream);
                 if(gridTracker[0][0] != 1)
                 {
-                    drawImage(gfx,robot2,0,0);
+                    Droid droid = new Droid(robotCounter);
+                    droid.setOldXCoordinate(0);
+                    droid.setOldYCoordinate(0);
+                    droid.setCurrentXCoordinate(0);
+                    droid.setCurrentYCoordinate(0);
                     gridTracker[0][0] = 1;
+                    robotCounter++;
+                    droidList.add(droid);
+                    setRobotPosition(2,2);
                 }
                 if(gridTracker[4][0] != 1)
                 {
-                    drawImage(gfx,robot2,4,0);
+                    Droid droid = new Droid(robotCounter);
+                    droid.setOldXCoordinate(4);
+                    droid.setOldYCoordinate(0);
+                    droid.setCurrentXCoordinate(4);
+                    droid.setCurrentYCoordinate(0);
                     gridTracker[4][0] = 1;
+                    robotCounter++;
+                    droidList.add(droid);
+                    setRobotPosition(2,2);
                 }
                 if(gridTracker[0][4] != 1)
                 {
-                    drawImage(gfx,robot2,0,4);
+                    Droid droid = new Droid(robotCounter);
+                    droid.setOldXCoordinate(0);
+                    droid.setOldYCoordinate(4);
+                    droid.setCurrentXCoordinate(0);
+                    droid.setCurrentYCoordinate(4);
                     gridTracker[0][4] = 1;
+                    robotCounter++;
+                    droidList.add(droid);
+                    setRobotPosition(2,2);
                 }
                 if(gridTracker[4][4] != 1)
                 {
-                    drawImage(gfx,robot2,4,4);
+                    Droid droid = new Droid(robotCounter);
+                    droid.setOldXCoordinate(4);
+                    droid.setOldYCoordinate(4);
+                    droid.setCurrentXCoordinate(4);
+                    droid.setCurrentYCoordinate(4);
                     gridTracker[4][4] = 1;
+                    robotCounter++;
+                    droidList.add(droid);
+                    setRobotPosition(2,2);
                 }
+                mutex.notify();
             }
         }
-    
     }
+    
+    private class MoveDroid implements Runnable{
+        private GraphicsContext gfx = canvas.getGraphicsContext2D();
+        private List<Integer> randomNumbersList = new ArrayList();
+        private boolean moveCompleted = false;
+        @Override
+        public void run() {
+           randomNumbersList.add(1);
+           randomNumbersList.add(2);
+           randomNumbersList.add(3);
+           randomNumbersList.add(4);
+           while(true)
+           {
+               long currentTimePassed = System.currentTimeMillis();
+               long timePassedSince = timePassed - currentTimePassed;
+               timePassed = currentTimePassed;
+               synchronized(mutex)
+               {
+                   try
+                   {
+                       for(Droid d : droidList)
+                       {
+                           Collections.shuffle(randomNumbersList);
+                           for(int j = 0; j < randomNumbersList.size(); j++)
+                           {
+                                int randomNumber = randomNumbersList.get(j);
+                                switch(randomNumber)
+                                {
+                                    case 1: //Move Up
+                                        if(d.getCurrentYCoordinate() - 1.0 >= 0.0 && 
+                                                gridTracker[(int) d.getCurrentXCoordinate()][(int) d.getCurrentYCoordinate()-1] == 0)
+                                        { 
+                                                d.setDroidStatus(true);
+                                                d.setOldXCoordinate(d.getCurrentXCoordinate());
+                                                d.setOldYCoordinate(d.getCurrentYCoordinate());
+                                                gridTracker[(int)d.getCurrentXCoordinate()][(int)d.getCurrentYCoordinate()] = 1;
+                                                gridTracker[(int)d.getCurrentXCoordinate()][(int)d.getCurrentYCoordinate()-1] = 1;
+                                                d.setCurrentYCoordinate(d.getCurrentYCoordinate() - 1.0);
+                                                d.setCurrentXCoordinate(d.getCurrentXCoordinate());
+                                                setRobotPosition(d.getCurrentXCoordinate(), d.getCurrentYCoordinate());
+                                                if(d.getOldYCoordinate() - 1.0 == d.getCurrentYCoordinate())
+                                                {
+                                                    d.setDroidStatus(false);
+                                                    gridTracker[(int)d.getOldXCoordinate()][(int) d.getOldYCoordinate()] = 0;
+                                                    System.out.println("...................GRID UPDATED........................");
+                                                    for(int row = 0; row < gridTracker.length; row++)
+                                                    {
+                                                         for(int column = 0; column < gridTracker[row].length;column++)
+                                                         {
+                                                             System.out.print(gridTracker[row][column]);
+                                                         }
+                                                         System.out.println("");
+                                                    }
+                                                    System.out.println(".....................Move 1.............");
+                                                    System.out.println("Current X Coordinate = " + d.getCurrentXCoordinate());
+                                                    System.out.println("Current Y Coordinate = " + d.getCurrentYCoordinate());
+                                                    System.out.println("Old X Coordinate = " + d.getOldXCoordinate());
+                                                    System.out.println("Old Y Coordinate = " + d.getOldYCoordinate());
+                                                    System.out.println("Droid Status: " + d.getDroidStatus());
+                                                    moveCompleted = true;
+                                                }
+                                        }
+                                        break;
+                                    case 2: //Move Left
+                                        if(d.getCurrentXCoordinate() - 1.0 >= 0.0 && 
+                                                gridTracker[(int) d.getCurrentXCoordinate()-1][(int) d.getCurrentYCoordinate()] == 0)
+                                        {
+                                            d.setDroidStatus(true);
+                                            d.setOldXCoordinate(d.getCurrentXCoordinate());
+                                            d.setOldYCoordinate(d.getCurrentYCoordinate());
+                                            gridTracker[(int)d.getCurrentXCoordinate()][(int)d.getCurrentYCoordinate()] = 1;
+                                            gridTracker[(int)d.getCurrentXCoordinate()-1][(int)d.getCurrentYCoordinate()] = 1;
+                                            d.setCurrentXCoordinate(d.getCurrentXCoordinate() - 1.0);
+                                            d.setCurrentYCoordinate(d.getCurrentYCoordinate());
+                                            setRobotPosition(d.getCurrentXCoordinate(), d.getCurrentYCoordinate());
+                                            if(d.getOldXCoordinate() - 1.0 == d.getCurrentXCoordinate())
+                                            {
+                                                d.setDroidStatus(false);
+                                                gridTracker[(int) d.getCurrentXCoordinate()][(int) d.getCurrentYCoordinate()] = 0;
+                                                System.out.println("...................GRID UPDATED........................");
+                                                for(int row = 0; row < gridTracker.length; row++)
+                                                {
+                                                     for(int column = 0; column < gridTracker[row].length;column++)
+                                                     {
+                                                         System.out.print(gridTracker[row][column]);
+                                                     }
+                                                     System.out.println("");
+                                                }
+                                            }
+                                            System.out.println(".....................Move 2.............");
+                                                System.out.println("Current X Coordinate = " + d.getCurrentXCoordinate());
+                                                System.out.println("Current Y Coordinate = " + d.getCurrentYCoordinate());
+                                                System.out.println("Old X Coordinate = " + d.getOldXCoordinate());
+                                                System.out.println("Old Y Coordinate = " + d.getOldYCoordinate());
+                                                System.out.println("Droid Status: " + d.getDroidStatus());
+                                                moveCompleted = true;
+                                        }
+                                        break;
+                                    case 3: //Move Down
+                                        if(d.getCurrentYCoordinate() + 1.0 <= 4.0 && 
+                                                gridTracker[(int) d.getCurrentXCoordinate()][(int) d.getCurrentYCoordinate()+1] == 0)
+                                        {
+                                            d.setDroidStatus(true);
+                                            d.setOldXCoordinate(d.getCurrentXCoordinate());
+                                            d.setOldYCoordinate(d.getCurrentYCoordinate());
+                                            gridTracker[(int)d.getCurrentXCoordinate()][(int)d.getCurrentYCoordinate()] = 1;
+                                            gridTracker[(int)d.getCurrentXCoordinate()][(int)d.getCurrentYCoordinate()+1] = 1;
+                                            d.setCurrentXCoordinate(d.getCurrentXCoordinate());
+                                            d.setCurrentYCoordinate(d.getCurrentYCoordinate()+1);
+                                            setRobotPosition(d.getCurrentXCoordinate(), d.getCurrentYCoordinate());
+                                            if(d.getOldXCoordinate() + 1.0 == d.getCurrentXCoordinate())
+                                            {
+                                                d.setDroidStatus(false);
+                                                gridTracker[(int) d.getCurrentXCoordinate()][(int) d.getCurrentYCoordinate()] = 0;
+                                                System.out.println("...................GRID UPDATED........................");
+                                                for(int row = 0; row < gridTracker.length; row++)
+                                                {
+                                                     for(int column = 0; column < gridTracker[row].length;column++)
+                                                     {
+                                                         System.out.print(gridTracker[row][column]);
+                                                     }
+                                                     System.out.println("");
+                                                }
+                                            }
+                                            System.out.println(".....................Move 3.............");
+                                                System.out.println("Current X Coordinate = " + d.getCurrentXCoordinate());
+                                                System.out.println("Current Y Coordinate = " + d.getCurrentYCoordinate());
+                                                System.out.println("Old X Coordinate = " + d.getOldXCoordinate());
+                                                System.out.println("Old Y Coordinate = " + d.getOldYCoordinate());
+                                                System.out.println("Droid Status: " + d.getDroidStatus());
+                                                moveCompleted = true;
+                                        }
+                                        break;
+                                    case 4: //Move Right
+                                        if(d.getCurrentXCoordinate() + 1.0 <= 4.0 && 
+                                                gridTracker[(int) d.getCurrentXCoordinate()+1][(int) d.getCurrentYCoordinate()] == 0)
+                                        {
+                                            d.setDroidStatus(true);
+                                            d.setOldXCoordinate(d.getCurrentXCoordinate());
+                                            d.setOldYCoordinate(d.getCurrentYCoordinate());
+                                            gridTracker[(int)d.getCurrentXCoordinate()][(int)d.getCurrentYCoordinate()] = 1;
+                                            gridTracker[(int)d.getCurrentXCoordinate()+1][(int)d.getCurrentYCoordinate()] = 1;
+                                            d.setCurrentXCoordinate(d.getCurrentXCoordinate() +1);
+                                            d.setCurrentYCoordinate(d.getCurrentYCoordinate());
+                                            setRobotPosition(d.getCurrentXCoordinate(), d.getCurrentYCoordinate());
+                                            if(d.getOldXCoordinate() + 1.0 == d.getCurrentXCoordinate())
+                                            {
+                                                d.setDroidStatus(false);
+                                                
+                                                System.out.println("...................GRID UPDATED........................");
+                                                for(int row = 0; row < gridTracker.length; row++)
+                                                {
+                                                     for(int column = 0; column < gridTracker[row].length;column++)
+                                                     {
+                                                         System.out.print(gridTracker[row][column]);
+                                                     }
+                                                     System.out.println("");
+                                                }
+                                                gridTracker[(int) d.getCurrentXCoordinate()][(int) d.getCurrentYCoordinate()] = 0;
+                                            }
+                                            System.out.println(".....................Move 4.............");
+                                                System.out.println("Current X Coordinate = " + d.getCurrentXCoordinate());
+                                                System.out.println("Current Y Coordinate = " + d.getCurrentYCoordinate());
+                                                System.out.println("Old X Coordinate = " + d.getOldXCoordinate());
+                                                System.out.println("Old Y Coordinate = " + d.getOldYCoordinate());
+                                                System.out.println("Droid Status: " + d.getDroidStatus());
+                                                moveCompleted = true;
+                                        }
+                                        break;
+                                }
+                                if(moveCompleted)
+                                {
+                                    moveCompleted = false;
+                                    break;
+                                }
+                                if(gridTracker[0][0] == 0 || gridTracker[4][0] == 0 
+                                        || gridTracker[0][4] == 0 || gridTracker[4][4] == 0 )
+                                {
+                                    mutex.wait();
+                                }
+                                Thread.sleep(3000);
+                           }
+                       }
+                       
+                   }
+                          
+                    catch(ArrayIndexOutOfBoundsException e)
+                    {}
+                    catch(InterruptedException c){}
+                }   
+           }
+        }
+    }   
+
 
     public void ScheduleSpawn(){
         ScheduledExecutorService service = Executors.newScheduledThreadPool(4);
-        service.scheduleAtFixedRate(new SpawnRobot() , 1, 2, TimeUnit.SECONDS);
+        service.scheduleAtFixedRate(new SpawnDroid() , 1000, 2000, TimeUnit.MILLISECONDS);
     }
     
     /**
@@ -112,8 +344,8 @@ public class JFXArena extends Pane
      */
     public void setRobotPosition(double x, double y)
     {
-        robotX = x;
-        robotY = y;
+        robotX = 2;
+        robotY = 2;
         requestLayout();
     }
     
@@ -188,6 +420,14 @@ public class JFXArena extends Pane
 
         // Invoke helper methods to draw things at the current location.
         // ** You will need to adapt this to the requirements of your application. **
+        InputStream robotEnemyInputStream = getClass().getClassLoader().getResourceAsStream("rg1024-robot-carrying-things-4.png");
+        robot2 = new Image(robotEnemyInputStream);
+        for(Droid d : droidList)
+        {
+            drawImage(gfx, robot2, d.getCurrentXCoordinate(), d.getCurrentYCoordinate());
+            drawLabel(gfx, "Robot " + d.getId(), d.getCurrentXCoordinate(),d.getCurrentYCoordinate());
+        }
+        
         drawImage(gfx, robot1, robotX, robotY);
         drawLabel(gfx, "Robot Name", robotX, robotY);
     }
@@ -276,3 +516,4 @@ public class JFXArena extends Pane
                        (gridY2 + 0.5) * gridSquareSize);
     }
 }
+
