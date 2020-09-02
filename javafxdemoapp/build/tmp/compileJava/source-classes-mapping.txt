@@ -1,7 +1,7 @@
-ArenaListener.java
- ArenaListener
 Droid.java
  Droid
+ArenaListener.java
+ ArenaListener
 App.java
  App
 JFXArena.java
