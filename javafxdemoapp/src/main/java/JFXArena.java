@@ -167,33 +167,20 @@ public class JFXArena extends Pane
                                                          }
                                                          System.out.println("");
                                                     }
+                                                for(int i = 0; i < 10; i++)
+                                                {
+                                                    d.setCurrentYCoordinate(d.getCurrentYCoordinate()-0.1);
+                                                    requestLayout();
+                                                    Thread.sleep(50);
+                                                }
                                                 d.setDroidStatus(true);
                                                 d.setOldXCoordinate(d.getCurrentXCoordinate());
-                                                d.setOldYCoordinate(d.getCurrentYCoordinate());
-                                                d.setCurrentYCoordinate(d.getCurrentYCoordinate() - 1.0);
+                                                d.setOldYCoordinate(Math.rint(d.getCurrentYCoordinate()));
+                                                d.setCurrentYCoordinate(Math.rint(d.getCurrentYCoordinate()));
                                                 d.setCurrentXCoordinate(d.getCurrentXCoordinate());
-                                                setRobotPosition(d.getCurrentXCoordinate(), d.getCurrentYCoordinate());
-                                                if(d.getOldYCoordinate() - 1.0 == d.getCurrentYCoordinate())
-                                                {
-                                                    gridTracker[(int) d.getCurrentYCoordinate()+1][(int) d.getCurrentXCoordinate()] = 0;
-                                                    d.setDroidStatus(false);
-                                                    System.out.println("...................GRID UPDATED........................");
-                                                    for(int row = 0; row < gridTracker.length; row++)
-                                                    {
-                                                         for(int column = 0; column < gridTracker[row].length;column++)
-                                                         {
-                                                             System.out.print(gridTracker[row][column]);
-                                                         }
-                                                         System.out.println("");
-                                                    }
-                                                    System.out.println(".....................Move 2.............");
-                                                    System.out.println("Current X Coordinate = " + d.getCurrentXCoordinate());
-                                                    System.out.println("Current Y Coordinate = " + d.getCurrentYCoordinate());
-                                                    System.out.println("Old X Coordinate = " + d.getOldXCoordinate());
-                                                    System.out.println("Old Y Coordinate = " + d.getOldYCoordinate());
-                                                    System.out.println("Droid Status: " + d.getDroidStatus());
-                                                    moveCompleted = true;
-                                                }
+                                                gridTracker[(int) Math.rint(d.getCurrentYCoordinate()+1)][(int) d.getCurrentXCoordinate()] = 0;
+                                                d.setDroidStatus(false);
+                                                moveCompleted = true;
                                         }
                                         break;
                                     case 1: //Move Left
@@ -210,32 +197,20 @@ public class JFXArena extends Pane
                                                      }
                                                      System.out.println("");
                                                 }
+                                            for(int i = 0; i < 10; i++)
+                                            {
+                                                d.setCurrentXCoordinate(d.getCurrentXCoordinate()-0.1);
+                                                requestLayout();
+                                                Thread.sleep(50);
+                                            }
                                             d.setDroidStatus(true);
-                                            d.setOldXCoordinate(d.getCurrentXCoordinate());
+                                            d.setOldXCoordinate(Math.rint(d.getCurrentXCoordinate()));
                                             d.setOldYCoordinate(d.getCurrentYCoordinate());
-                                            d.setCurrentXCoordinate(d.getCurrentXCoordinate() - 1.0);
+                                            d.setCurrentXCoordinate(Math.rint(d.getCurrentXCoordinate()));
                                             d.setCurrentYCoordinate(d.getCurrentYCoordinate());
                                             setRobotPosition(d.getCurrentXCoordinate(), d.getCurrentYCoordinate());
-                                            if(d.getOldXCoordinate() - 1.0 == d.getCurrentXCoordinate())
-                                            {
-                                                gridTracker[(int) d.getCurrentYCoordinate()][(int) d.getCurrentXCoordinate()+1] = 0;
-                                                d.setDroidStatus(false);
-                                                System.out.println("...................GRID UPDATED........................");
-                                                for(int row = 0; row < gridTracker.length; row++)
-                                                {
-                                                     for(int column = 0; column < gridTracker[row].length;column++)
-                                                     {
-                                                         System.out.print(gridTracker[row][column]);
-                                                     }
-                                                     System.out.println("");
-                                                }
-                                            }
-                                            System.out.println(".....................Move 1.............");
-                                            System.out.println("Current X Coordinate = " + d.getCurrentXCoordinate());
-                                            System.out.println("Current Y Coordinate = " + d.getCurrentYCoordinate());
-                                            System.out.println("Old X Coordinate = " + d.getOldXCoordinate());
-                                            System.out.println("Old Y Coordinate = " + d.getOldYCoordinate());
-                                            System.out.println("Droid Status: " + d.getDroidStatus());
+                                            gridTracker[(int) d.getCurrentYCoordinate()][(int) Math.rint(d.getCurrentXCoordinate()+1)] = 0;
+                                            d.setDroidStatus(false);
                                             moveCompleted = true;
                                         }
                                         break;
@@ -244,55 +219,30 @@ public class JFXArena extends Pane
                                         if(d.getCurrentXCoordinate() + 1.0 <= 4.0 && 
                                                 gridTracker[(int) d.getCurrentYCoordinate()][(int) d.getCurrentXCoordinate()+1] == 0 && !d.getDroidStatus())
                                         {
-                                            d.setDroidStatus(true);
                                             gridTracker[(int) d.getCurrentYCoordinate()][(int) d.getCurrentXCoordinate()] = 1;
                                             gridTracker[(int)d.getCurrentYCoordinate()][(int) d.getCurrentXCoordinate()+1] = 1;
-                                            d.setOldXCoordinate(d.getCurrentXCoordinate());
+                                           for(int i = 0; i < 10; i++)
+                                            {
+                                                d.setCurrentXCoordinate(d.getCurrentXCoordinate()+0.1);
+                                                requestLayout();
+                                                Thread.sleep(50);
+                                            }
+                                            d.setDroidStatus(true);
+                                            
+                                            d.setOldXCoordinate(Math.rint(d.getCurrentXCoordinate()));
                                             d.setOldYCoordinate(d.getCurrentYCoordinate());
-                                            d.setCurrentXCoordinate(d.getCurrentXCoordinate() +1);
+                                            d.setCurrentXCoordinate(Math.rint(d.getCurrentXCoordinate()));
                                             d.setCurrentYCoordinate(d.getCurrentYCoordinate());
                                             setRobotPosition(d.getCurrentXCoordinate(), d.getCurrentYCoordinate());
-                                            if(d.getOldXCoordinate() + 1.0 == d.getCurrentXCoordinate())
-                                            {
-                                                d.setDroidStatus(false);
-                                                gridTracker[(int) d.getCurrentYCoordinate()][(int) d.getCurrentXCoordinate()-1] = 0;
-                                                System.out.println("...................GRID UPDATED........................");
-                                                for(int row = 0; row < gridTracker.length; row++)
-                                                {
-                                                     for(int column = 0; column < gridTracker[row].length;column++)
-                                                     {
-                                                         System.out.print(gridTracker[row][column]);
-                                                     }
-                                                     System.out.println("");
-                                                }
-                                            }
-                                            System.out.println(".....................Move 3.............");
-                                            System.out.println("Current X Coordinate = " + d.getCurrentXCoordinate());
-                                            System.out.println("Current Y Coordinate = " + d.getCurrentYCoordinate());
-                                            System.out.println("Old X Coordinate = " + d.getOldXCoordinate());
-                                            System.out.println("Old Y Coordinate = " + d.getOldYCoordinate());
-                                            System.out.println("Droid Status: " + d.getDroidStatus());
+                                            d.setDroidStatus(false);
+                                            gridTracker[(int) d.getCurrentYCoordinate()][(int) d.getCurrentXCoordinate()-1] = 0;
                                             moveCompleted = true;
                                         }
-                                        /*else
-                                        {
-                                            while(d.getOldXCoordinate()+1 != d.getCurrentXCoordinate())
-                                            {
-                                                long timePassed = System.currentTimeMillis();
-                                                long timePassedSince = timePassed - currentTimePassed;
-                                                currentTimePassed = timePassed;
-                                                double gridSpaceMoved = timePassedSince/500;
-                                                d.setCurrentXCoordinate(d.getCurrentXCoordinate() + gridSpaceMoved);
-                                            }
-                                            d.setDroidStatus(false);
-                                            gridTracker[(int)d.getOldYCoordinate()][(int)d.getCurrentXCoordinate()] = 0;
-                                        }*/
                                         break;
                                     case 4: //Move Down
                                         if(d.getCurrentYCoordinate() + 1.0 <= 4.0 && 
                                                 gridTracker[(int) d.getCurrentYCoordinate()+1][(int) d.getCurrentXCoordinate()] == 0 && !d.getDroidStatus())
                                         {
-                                            
                                             d.setDroidStatus(true);
                                             gridTracker[(int)d.getCurrentYCoordinate()][(int)d.getCurrentXCoordinate()] = 1;
                                             gridTracker[(int)d.getCurrentYCoordinate()+1][(int)d.getCurrentXCoordinate()] = 1;
@@ -304,31 +254,19 @@ public class JFXArena extends Pane
                                                      }
                                                      System.out.println("");
                                                 }
-                                            d.setOldXCoordinate(d.getCurrentXCoordinate());
-                                            d.setOldYCoordinate(d.getCurrentYCoordinate());
-                                            d.setCurrentXCoordinate(d.getCurrentXCoordinate());
-                                            d.setCurrentYCoordinate(d.getCurrentYCoordinate()+1);
-                                            setRobotPosition(d.getCurrentXCoordinate(), d.getCurrentYCoordinate());
-                                            if(d.getOldYCoordinate() + 1.0 == d.getCurrentYCoordinate())
-                                            {
-                                                d.setDroidStatus(false);
-                                                gridTracker[(int) d.getCurrentYCoordinate()-1][(int) d.getCurrentXCoordinate()] = 0;
-                                                System.out.println("...................GRID UPDATED........................");
-                                                for(int row = 0; row < gridTracker.length; row++)
+                                                for(int i = 0; i < 10; i++)
                                                 {
-                                                     for(int column = 0; column < gridTracker[row].length;column++)
-                                                     {
-                                                         System.out.print(gridTracker[row][column]);
-                                                     }
-                                                     System.out.println("");
+                                                    d.setCurrentYCoordinate(d.getCurrentYCoordinate()+0.1);
+                                                    requestLayout();
+                                                    Thread.sleep(50);
                                                 }
-                                            }
-                                            System.out.println(".....................Move 4.............");
-                                            System.out.println("Current X Coordinate = " + d.getCurrentXCoordinate());
-                                            System.out.println("Current Y Coordinate = " + d.getCurrentYCoordinate());
-                                            System.out.println("Old X Coordinate = " + d.getOldXCoordinate());
-                                            System.out.println("Old Y Coordinate = " + d.getOldYCoordinate());
-                                            System.out.println("Droid Status: " + d.getDroidStatus());
+                                            d.setOldXCoordinate(d.getCurrentXCoordinate());
+                                            d.setOldYCoordinate(Math.rint(d.getCurrentYCoordinate()));
+                                            d.setCurrentXCoordinate(d.getCurrentXCoordinate());
+                                            d.setCurrentYCoordinate(Math.rint(d.getCurrentYCoordinate()));
+                                            requestLayout();
+                                            d.setDroidStatus(false);
+                                            gridTracker[(int) d.getCurrentYCoordinate()-1][(int) d.getCurrentXCoordinate()] = 0;
                                             moveCompleted = true;
                                         }
                                         break;
