@@ -113,8 +113,8 @@ public class JFXArena extends Pane
             Droid droid = new Droid(robotCounter);
             droid.setOldXCoordinate(XCoordinate);
             droid.setOldYCoordinate(YCoordinate);
-            droid.setCurrentXCoordinate(XCoordinate);
-            droid.setCurrentYCoordinate(YCoordinate);
+            droid.setCurrentXCoordinate(YCoordinate);
+            droid.setCurrentYCoordinate(XCoordinate);
             gridTracker[XCoordinate][YCoordinate] = 1;
             robotCounter++;
             droidList.add(droid);
@@ -543,4 +543,3 @@ public class JFXArena extends Pane
                        (gridY2 + 0.5) * gridSquareSize);
     }
 }
-
