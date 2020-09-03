@@ -12,10 +12,15 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import javafx.animation.PathTransition;
+import javafx.application.Platform;
 import javafx.scene.Node;
+import javafx.scene.control.Alert;
+import javafx.scene.control.Alert.AlertType;
 import javafx.scene.shape.Circle;
 
 /**
@@ -24,7 +29,7 @@ import javafx.scene.shape.Circle;
 public class JFXArena extends Pane
 {
     // Represents the image to draw. You can modify this to introduce multiple images.
-    private static final String IMAGE_FILE = "1554047213.png";
+    private static final String IMAGE_FILE = "rg1024-isometric-tower.png";
     private Image robot1;
     private Image robot2;
     // The following values are arbitrary, and you may need to modify them according to the 
@@ -41,12 +46,20 @@ public class JFXArena extends Pane
     private LinkedBlockingQueue<Droid> droidList = new LinkedBlockingQueue<>();
     private List<ArenaListener> listeners = null;
     private boolean isStarted = false;
-    
+    private Object gameOverMutex = new Object();
+    private Object moveMapMutex = new Object();
+    private ScheduledExecutorService droidMoveService = Executors.newScheduledThreadPool(6);
+    private ScheduledExecutorService spawnDroidService = Executors.newScheduledThreadPool(4);
+    private SynchronousQueue firingQueue = new SynchronousQueue<>();
+    private boolean isMoving = false;
+    private ExecutorService firingService;
+    private HashMap<Integer, ScheduledFuture> moveMap = new HashMap<Integer,ScheduledFuture>();
     /**
      * Creates a new arena object, loading the robot image and initialising a drawing surface.
      */
     public JFXArena()
     {
+        firingService = new ThreadPoolExecutor(4,8,1000, TimeUnit.MILLISECONDS, firingQueue);
         // Here's how you get an Image object from an image file (which you provide in the 
         // 'resources/' directory).
         for(int row = 0; row < gridTracker.length; row++)
@@ -56,7 +69,7 @@ public class JFXArena extends Pane
                 gridTracker[row][column] = 0;
             }
         }
-        gridTracker[2][2] = 1;
+        gridTracker[2][2] = 0;
         mutex = new Object();
         InputStream is = getClass().getClassLoader().getResourceAsStream(IMAGE_FILE);
         if(is == null)
@@ -69,7 +82,8 @@ public class JFXArena extends Pane
         canvas.heightProperty().bind(heightProperty());
         getChildren().add(canvas);
         ScheduleSpawn();
-        
+        Thread gameOverThread = new Thread(new CheckGameOver(), "GameOverCheck");
+        gameOverThread.start();
     }
     
     private class SpawnDroid implements Runnable{
@@ -80,25 +94,25 @@ public class JFXArena extends Pane
         {
             synchronized(mutex)
             {
-                if(gridTracker[0][0] == 0)
+                if(gridTracker[0][0] == 0 && gridTracker[2][2] != 1)
                 {
                     SetDroidCoordinates(0,0);
                     setRobotPosition(2,2);
                     System.out.println("0,0 is empty");
                 }
-                if(gridTracker[4][0] == 0)
+                if(gridTracker[4][0] == 0 && gridTracker[2][2] != 1)
                 {
                     SetDroidCoordinates(4,0);
                     setRobotPosition(2,2);
                     System.out.println("4,0 is empty");
                 }
-                if(gridTracker[0][4] == 0)
+                if(gridTracker[0][4] == 0 && gridTracker[2][2] != 1)
                 {
                     SetDroidCoordinates(0,4);
                     setRobotPosition(2,2);
                     System.out.println("0,4 is empty");
                 }
-                if(gridTracker[4][4] == 0)
+                if(gridTracker[4][4] == 0 && gridTracker[2][2] != 1)
                 {
                     SetDroidCoordinates(4,4);
                     setRobotPosition(2,2);
@@ -106,7 +120,7 @@ public class JFXArena extends Pane
                 }
                 mutex.notify();
             }
-            ScheduleDroidMove();
+                ScheduleDroidMove();
         }
         private void SetDroidCoordinates(int XCoordinate, int YCoordinate)
         {
@@ -133,7 +147,7 @@ public class JFXArena extends Pane
         }
         
         @Override
-        public void run() {
+        public void run(){
            randomNumbersList.add(1);
            randomNumbersList.add(2);
            randomNumbersList.add(3);
@@ -146,7 +160,6 @@ public class JFXArena extends Pane
                            Collections.shuffle(randomNumbersList);
                            for(int j = 0; j < randomNumbersList.size(); j++)
                            {
-                                  
                                 int randomNumber = randomNumbersList.get(j);
                                 
                                 switch(randomNumber)
@@ -167,6 +180,7 @@ public class JFXArena extends Pane
                                                          }
                                                          System.out.println("");
                                                     }
+                                                System.out.println("..............................................");
                                                 for(int i = 0; i < 10; i++)
                                                 {
                                                     d.setCurrentYCoordinate(d.getCurrentYCoordinate()-0.1);
@@ -175,11 +189,12 @@ public class JFXArena extends Pane
                                                 }
                                                 d.setDroidStatus(true);
                                                 d.setOldXCoordinate(d.getCurrentXCoordinate());
-                                                d.setOldYCoordinate(Math.rint(d.getCurrentYCoordinate()));
+                                                d.setOldYCoordinate(Math.rint(d.getCurrentYCoordinate()+1));
                                                 d.setCurrentYCoordinate(Math.rint(d.getCurrentYCoordinate()));
                                                 d.setCurrentXCoordinate(d.getCurrentXCoordinate());
-                                                gridTracker[(int) Math.rint(d.getCurrentYCoordinate()+1)][(int) d.getCurrentXCoordinate()] = 0;
+                                                requestLayout();
                                                 d.setDroidStatus(false);
+                                                gridTracker[(int) Math.rint(d.getCurrentYCoordinate())+1][(int) d.getCurrentXCoordinate()] = 0;
                                                 moveCompleted = true;
                                         }
                                         break;
@@ -197,6 +212,7 @@ public class JFXArena extends Pane
                                                      }
                                                      System.out.println("");
                                                 }
+                                            System.out.println("..............................................");
                                             for(int i = 0; i < 10; i++)
                                             {
                                                 d.setCurrentXCoordinate(d.getCurrentXCoordinate()-0.1);
@@ -204,13 +220,13 @@ public class JFXArena extends Pane
                                                 Thread.sleep(50);
                                             }
                                             d.setDroidStatus(true);
-                                            d.setOldXCoordinate(Math.rint(d.getCurrentXCoordinate()));
+                                            d.setOldXCoordinate(Math.rint(d.getCurrentXCoordinate()+1));
                                             d.setOldYCoordinate(d.getCurrentYCoordinate());
                                             d.setCurrentXCoordinate(Math.rint(d.getCurrentXCoordinate()));
                                             d.setCurrentYCoordinate(d.getCurrentYCoordinate());
-                                            setRobotPosition(d.getCurrentXCoordinate(), d.getCurrentYCoordinate());
-                                            gridTracker[(int) d.getCurrentYCoordinate()][(int) Math.rint(d.getCurrentXCoordinate()+1)] = 0;
+                                            requestLayout();
                                             d.setDroidStatus(false);
+                                            gridTracker[(int) d.getCurrentYCoordinate()][(int) Math.rint(d.getCurrentXCoordinate())+1] = 0;
                                             moveCompleted = true;
                                         }
                                         break;
@@ -221,6 +237,15 @@ public class JFXArena extends Pane
                                         {
                                             gridTracker[(int) d.getCurrentYCoordinate()][(int) d.getCurrentXCoordinate()] = 1;
                                             gridTracker[(int)d.getCurrentYCoordinate()][(int) d.getCurrentXCoordinate()+1] = 1;
+                                            for(int row = 0; row < gridTracker.length; row++)
+                                                {
+                                                     for(int column = 0; column < gridTracker[row].length;column++)
+                                                     {
+                                                         System.out.print(gridTracker[row][column]);
+                                                     }
+                                                     System.out.println("");
+                                                }
+                                            System.out.println("..............................................");
                                            for(int i = 0; i < 10; i++)
                                             {
                                                 d.setCurrentXCoordinate(d.getCurrentXCoordinate()+0.1);
@@ -228,14 +253,13 @@ public class JFXArena extends Pane
                                                 Thread.sleep(50);
                                             }
                                             d.setDroidStatus(true);
-                                            
-                                            d.setOldXCoordinate(Math.rint(d.getCurrentXCoordinate()));
+                                            d.setOldXCoordinate(Math.rint(d.getCurrentXCoordinate()-1));
                                             d.setOldYCoordinate(d.getCurrentYCoordinate());
                                             d.setCurrentXCoordinate(Math.rint(d.getCurrentXCoordinate()));
                                             d.setCurrentYCoordinate(d.getCurrentYCoordinate());
                                             setRobotPosition(d.getCurrentXCoordinate(), d.getCurrentYCoordinate());
                                             d.setDroidStatus(false);
-                                            gridTracker[(int) d.getCurrentYCoordinate()][(int) d.getCurrentXCoordinate()-1] = 0;
+                                            gridTracker[(int) d.getCurrentYCoordinate()][(int) Math.rint(d.getCurrentXCoordinate())-1] = 0;
                                             moveCompleted = true;
                                         }
                                         break;
@@ -254,6 +278,7 @@ public class JFXArena extends Pane
                                                      }
                                                      System.out.println("");
                                                 }
+                                            System.out.println("..............................................");
                                                 for(int i = 0; i < 10; i++)
                                                 {
                                                     d.setCurrentYCoordinate(d.getCurrentYCoordinate()+0.1);
@@ -261,12 +286,12 @@ public class JFXArena extends Pane
                                                     Thread.sleep(50);
                                                 }
                                             d.setOldXCoordinate(d.getCurrentXCoordinate());
-                                            d.setOldYCoordinate(Math.rint(d.getCurrentYCoordinate()));
+                                            d.setOldYCoordinate(Math.rint(d.getCurrentYCoordinate()-1));
                                             d.setCurrentXCoordinate(d.getCurrentXCoordinate());
                                             d.setCurrentYCoordinate(Math.rint(d.getCurrentYCoordinate()));
                                             requestLayout();
                                             d.setDroidStatus(false);
-                                            gridTracker[(int) d.getCurrentYCoordinate()-1][(int) d.getCurrentXCoordinate()] = 0;
+                                            gridTracker[(int) Math.rint(d.getCurrentYCoordinate())-1][(int) d.getCurrentXCoordinate()] = 0;
                                             moveCompleted = true;
                                         }
                                         break;
@@ -274,6 +299,15 @@ public class JFXArena extends Pane
                                 if(moveCompleted)
                                 {
                                     moveCompleted = false;
+                                    break;
+                                }
+                                if(gridTracker[2][2] == 1)
+                                {
+                                    mutex.wait(); // ensure no other bots can move
+                                    synchronized(gameOverMutex)
+                                    {
+                                        gameOverMutex.wait();
+                                    }
                                     break;
                                 }
                             }
@@ -284,25 +318,62 @@ public class JFXArena extends Pane
                    }
                    catch(ArrayIndexOutOfBoundsException e)
                    {}
-                   catch(InterruptedException c){}
+                   catch(InterruptedException c){
+                   }
                 }   
         }
     }   
     public void ScheduleDroidMove()
     {
-        ScheduledExecutorService service = Executors.newScheduledThreadPool(6);
-        for(Droid d : droidList)
-        {
-            MoveDroid md = new MoveDroid(d);
-            service.schedule(md, d.getDelay(), TimeUnit.MILLISECONDS);
-        }
+            for(Droid d : droidList)
+            {
+                MoveDroid md = new MoveDroid(d);
+                ScheduledFuture<?> moveFuture = droidMoveService.schedule(md,d.getDelay(), TimeUnit.MILLISECONDS);
+                moveMap.put(d.getId(), moveFuture);
+            }
+        
     }
     
     public void ScheduleSpawn(){
-        ScheduledExecutorService service = Executors.newScheduledThreadPool(4);
-        service.scheduleAtFixedRate(new SpawnDroid() , 1000, 2000, TimeUnit.MILLISECONDS);
+        spawnDroidService.scheduleAtFixedRate(new SpawnDroid() , 1000, 2000, TimeUnit.MILLISECONDS);
     }
     
+    private class CheckGameOver implements Runnable{
+        @Override
+        public void run(){
+            synchronized(gameOverMutex)
+            {
+                while(gridTracker[2][2] != 1)
+                {
+                    for(Droid d : droidList)
+                    {
+                        if(gridTracker[2][2] == 1)
+                        {
+                            synchronized(mutex)
+                            {
+                                    spawnDroidService.shutdown();
+                                    droidMoveService.shutdown();
+                                    droidList.clear();
+                                    requestLayout();
+                            }
+                            break;
+                        }
+                    }
+                }
+                Platform.runLater(new Runnable(){
+                    @Override
+                    public void run()
+                    {
+                        Alert a = new Alert(AlertType.CONFIRMATION);
+                        a.setTitle("Game Over");
+                        a.setContentText("A droid reached the robot at (2,2)");
+                        a.show();
+                        }});
+                        gameOverMutex.notify();
+                    }       
+                }
+        
+    }
     /**
      * Moves a robot image to a new grid position. This is highly rudimentary, as you will need
      * many different robots in practice. This method currently just serves as a demonstration.
@@ -335,12 +406,50 @@ public class JFXArena extends Pane
                     {   
                         listener.squareClicked(gridX, gridY);
                     }
+                    if(gridTracker[gridY][gridX] == 1)
+                    {
+                        firingService.execute(new FiringCommand(gridX, gridY));
+                    }
                 }
-            });
+                listeners.add(newListener);
+                });
         }
-        listeners.add(newListener);
     }
         
+    private class FiringCommand implements Runnable{
+        private int gridX;
+        private int gridY;
+        
+        public FiringCommand(int gridX, int gridY)
+        {
+            this.gridX = gridX;
+            this.gridY = gridY;
+        }
+        
+        @Override
+        public void run() 
+        {
+            for(Droid d : droidList)
+            {
+                if(d.getCurrentXCoordinate() == gridX && d.getCurrentYCoordinate() == gridY && d.getDroidStatus() == false)
+                {
+                    try
+                    {
+                        Thread.sleep(1000);
+                        droidList.remove(d);
+                        gridTracker[gridY][gridX] = 0;
+                        gridTracker[(int)d.getCurrentYCoordinate()][(int)d.getCurrentXCoordinate()] = 0;
+                            ScheduledFuture s = moveMap.get(d.getId());
+                            s.cancel(true);
+                        requestLayout();
+                    }
+                    catch(InterruptedException e)
+                    {}
+                }
+            }
+        }
+        
+    }
         
     /**
      * This method is called in order to redraw the screen, either because the user is manipulating 
