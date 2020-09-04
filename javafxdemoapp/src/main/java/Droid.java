@@ -9,12 +9,14 @@ public class Droid
     private double newXCoordinate;
     private double newYCoordinate;
     private boolean droidMoving;
+    private boolean isAlive;
 
     public Droid(int id)
     {
         this.id = id;
         this.delay = ((int) (Math.random() * (2000 - 500))) + 500;
         droidMoving = false;
+        isAlive = true;
     }
     
     public int getDelay()
@@ -80,5 +82,15 @@ public class Droid
     public void setDroidStatus(boolean droidMoving)
     {
         this.droidMoving = droidMoving;
+    }
+    
+    public boolean getIsAlive()
+    {
+        return isAlive;
+    }
+    
+    public void setIsAlive(boolean isAlive)
+    {
+        this.isAlive = isAlive;
     }
 }

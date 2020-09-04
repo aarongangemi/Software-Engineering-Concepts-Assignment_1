@@ -48,8 +48,7 @@ public class JFXArena extends Pane
     private boolean isStarted = false;
     private Object gameOverMutex = new Object();
     private Object moveMapMutex = new Object();
-    private ScheduledExecutorService droidMoveService = Executors.newScheduledThreadPool(6);
-    private ScheduledExecutorService spawnDroidService = Executors.newScheduledThreadPool(4);
+    private ScheduledExecutorService spawnDroidService = Executors.newScheduledThreadPool(8);
     private SynchronousQueue firingQueue = new SynchronousQueue<>();
     private boolean isMoving = false;
     private ExecutorService firingService;
@@ -82,7 +81,7 @@ public class JFXArena extends Pane
         canvas.heightProperty().bind(heightProperty());
         getChildren().add(canvas);
         ScheduleSpawn();
-        Thread gameOverThread = new Thread(new CheckGameOver(), "GameOverCheck");
+        Thread gameOverThread = new Thread(new GameOver(), "GameOver");
         gameOverThread.start();
     }
     
@@ -97,41 +96,43 @@ public class JFXArena extends Pane
                 if(gridTracker[0][0] == 0 && gridTracker[2][2] != 1)
                 {
                     SetDroidCoordinates(0,0);
-                    setRobotPosition(2,2);
+                    requestLayout();
                     System.out.println("0,0 is empty");
                 }
                 if(gridTracker[4][0] == 0 && gridTracker[2][2] != 1)
                 {
                     SetDroidCoordinates(4,0);
-                    setRobotPosition(2,2);
+                    requestLayout();
                     System.out.println("4,0 is empty");
                 }
                 if(gridTracker[0][4] == 0 && gridTracker[2][2] != 1)
                 {
                     SetDroidCoordinates(0,4);
-                    setRobotPosition(2,2);
+                    requestLayout();
                     System.out.println("0,4 is empty");
                 }
                 if(gridTracker[4][4] == 0 && gridTracker[2][2] != 1)
                 {
                     SetDroidCoordinates(4,4);
-                    setRobotPosition(2,2);
+                    requestLayout();
                     System.out.println("4,4 is empty");
                 }
                 mutex.notify();
             }
-                ScheduleDroidMove();
+             
         }
         private void SetDroidCoordinates(int XCoordinate, int YCoordinate)
         {
             Droid droid = new Droid(robotCounter);
             droid.setOldXCoordinate(XCoordinate);
             droid.setOldYCoordinate(YCoordinate);
-            droid.setCurrentXCoordinate(YCoordinate);
-            droid.setCurrentYCoordinate(XCoordinate);
-            gridTracker[XCoordinate][YCoordinate] = 1;
+            droid.setCurrentXCoordinate(XCoordinate);
+            droid.setCurrentYCoordinate(YCoordinate);
+            gridTracker[(int)droid.getCurrentXCoordinate()][(int)droid.getCurrentYCoordinate()] = 1;
             robotCounter++;
             droidList.add(droid);
+            Thread t = new Thread(new MoveDroid(droid), String.valueOf(droid.getId()));
+            t.start();
         }
     }
     
@@ -152,11 +153,12 @@ public class JFXArena extends Pane
            randomNumbersList.add(2);
            randomNumbersList.add(3);
            randomNumbersList.add(4);
-               synchronized(mutex)
-               {
-                   
-                   try
+           
+                   while(d.getIsAlive() == true && gridTracker[2][2] != 1)
                    {
+                        try
+                        {
+                            Thread.sleep(d.getDelay());
                            Collections.shuffle(randomNumbersList);
                            for(int j = 0; j < randomNumbersList.size(); j++)
                            {
@@ -293,87 +295,94 @@ public class JFXArena extends Pane
                                             d.setDroidStatus(false);
                                             gridTracker[(int) Math.rint(d.getCurrentYCoordinate())-1][(int) d.getCurrentXCoordinate()] = 0;
                                             moveCompleted = true;
+                                            
                                         }
                                         break;
                                 }
                                 if(moveCompleted)
                                 {
+                                    if(gridTracker[2][2] == 1)
+                                    {
+                                        synchronized(gameOverMutex)
+                                        {
+                                           gameOverMutex.notify();
+                                           
+                                        }
+                                        Thread.currentThread().interrupt();
+                                    }
+                                    
+                                    
                                     moveCompleted = false;
                                     break;
                                 }
-                                if(gridTracker[2][2] == 1)
-                                {
-                                    mutex.wait(); // ensure no other bots can move
-                                    synchronized(gameOverMutex)
-                                    {
-                                        gameOverMutex.wait();
-                                    }
-                                    break;
-                                }
                             }
+                           
                             if(gridTracker[0][0] == 0 || gridTracker[4][0] == 0 || gridTracker[0][4] == 0 || gridTracker[4][4] == 0 )
                             {
-                                mutex.wait();
+                                synchronized(mutex)
+                                {
+                                   mutex.wait();
+                                }
+                                
                             }
+                   Thread.sleep(5000);
                    }
                    catch(ArrayIndexOutOfBoundsException e)
                    {}
                    catch(InterruptedException c){
                    }
-                }   
+                   
+                }
+                if(d.getIsAlive() == false)
+                {
+                    Thread.currentThread().interrupt();
+                }
         }
     }   
-    public void ScheduleDroidMove()
-    {
-            for(Droid d : droidList)
-            {
-                MoveDroid md = new MoveDroid(d);
-                ScheduledFuture<?> moveFuture = droidMoveService.schedule(md,d.getDelay(), TimeUnit.MILLISECONDS);
-                moveMap.put(d.getId(), moveFuture);
-            }
-        
-    }
     
     public void ScheduleSpawn(){
         spawnDroidService.scheduleAtFixedRate(new SpawnDroid() , 1000, 2000, TimeUnit.MILLISECONDS);
     }
     
-    private class CheckGameOver implements Runnable{
+    private class GameOver implements Runnable{
         @Override
-        public void run(){
-            synchronized(gameOverMutex)
+        public void run()
+        {
+            while(true)
             {
-                while(gridTracker[2][2] != 1)
-                {
-                    for(Droid d : droidList)
+                    synchronized(gameOverMutex)
                     {
-                        if(gridTracker[2][2] == 1)
+                        if(gridTracker[2][2]==0)
                         {
-                            synchronized(mutex)
+                            try
                             {
-                                    spawnDroidService.shutdown();
-                                    droidMoveService.shutdown();
-                                    droidList.clear();
-                                    requestLayout();
+                               gameOverMutex.wait(); 
                             }
+                            catch(InterruptedException e){}
+                        }
+                            spawnDroidService.shutdown();
+                            droidList.clear();
+                            requestLayout();
+                            Platform.runLater(new Runnable(){
+                            @Override
+                            public void run()
+                            {
+                                Alert a = new Alert(AlertType.CONFIRMATION);
+                                a.setTitle("Game Over");
+                                a.setContentText("A droid reached the robot at (2,2)");
+                                a.show();
+                            }});
+                            gridTracker[2][2] = 1;
                             break;
                         }
-                    }
-                }
-                Platform.runLater(new Runnable(){
-                    @Override
-                    public void run()
-                    {
-                        Alert a = new Alert(AlertType.CONFIRMATION);
-                        a.setTitle("Game Over");
-                        a.setContentText("A droid reached the robot at (2,2)");
-                        a.show();
-                        }});
-                        gameOverMutex.notify();
-                    }       
-                }
-        
+                
+            }
+        }
     }
+   
+        
+           
+        
     /**
      * Moves a robot image to a new grid position. This is highly rudimentary, as you will need
      * many different robots in practice. This method currently just serves as a demonstration.
@@ -437,10 +446,9 @@ public class JFXArena extends Pane
                     {
                         Thread.sleep(1000);
                         droidList.remove(d);
+                        d.setIsAlive(false);
                         gridTracker[gridY][gridX] = 0;
                         gridTracker[(int)d.getCurrentYCoordinate()][(int)d.getCurrentXCoordinate()] = 0;
-                            ScheduledFuture s = moveMap.get(d.getId());
-                            s.cancel(true);
                         requestLayout();
                     }
                     catch(InterruptedException e)

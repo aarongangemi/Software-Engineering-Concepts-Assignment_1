@@ -6,8 +6,8 @@ App.java
  App
 JFXArena.java
  JFXArena
- JFXArena$CheckGameOver
- JFXArena$CheckGameOver$1
  JFXArena$FiringCommand
+ JFXArena$GameOver
+ JFXArena$GameOver$1
  JFXArena$MoveDroid
  JFXArena$SpawnDroid
