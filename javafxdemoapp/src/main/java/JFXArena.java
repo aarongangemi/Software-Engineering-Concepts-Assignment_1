@@ -21,6 +21,8 @@ import javafx.application.Platform;
 import javafx.scene.Node;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Alert.AlertType;
+import javafx.scene.control.Label;
+import javafx.scene.control.TextArea;
 import javafx.scene.shape.Circle;
 
 /**
@@ -47,16 +49,18 @@ public class JFXArena extends Pane
     private List<ArenaListener> listeners = null;
     private boolean isStarted = false;
     private Object gameOverMutex = new Object();
-    private Object moveMapMutex = new Object();
-    private ScheduledExecutorService spawnDroidService = Executors.newScheduledThreadPool(8);
+    private ScheduledExecutorService spawnDroidService = Executors.newScheduledThreadPool(12);
     private SynchronousQueue firingQueue = new SynchronousQueue<>();
-    private boolean isMoving = false;
     private ExecutorService firingService;
-    private HashMap<Integer, ScheduledFuture> moveMap = new HashMap<Integer,ScheduledFuture>();
+    private TextArea logger;
+    private Label scoreLabel;
+    private int score = 0;
+    private Object scoreMutex = new Object();
+    private boolean isFiring = false;
     /**
      * Creates a new arena object, loading the robot image and initialising a drawing surface.
      */
-    public JFXArena()
+    public JFXArena(TextArea logger, Label label)
     {
         firingService = new ThreadPoolExecutor(4,8,1000, TimeUnit.MILLISECONDS, firingQueue);
         // Here's how you get an Image object from an image file (which you provide in the 
@@ -83,6 +87,10 @@ public class JFXArena extends Pane
         ScheduleSpawn();
         Thread gameOverThread = new Thread(new GameOver(), "GameOver");
         gameOverThread.start();
+        this.logger = logger;
+        this.scoreLabel = label;
+        Thread scoreThread = new Thread(new ScoreUpdater(),"ScoreThread");
+        scoreThread.start();
     }
     
     private class SpawnDroid implements Runnable{
@@ -259,7 +267,7 @@ public class JFXArena extends Pane
                                             d.setOldYCoordinate(d.getCurrentYCoordinate());
                                             d.setCurrentXCoordinate(Math.rint(d.getCurrentXCoordinate()));
                                             d.setCurrentYCoordinate(d.getCurrentYCoordinate());
-                                            setRobotPosition(d.getCurrentXCoordinate(), d.getCurrentYCoordinate());
+                                            requestLayout();
                                             d.setDroidStatus(false);
                                             gridTracker[(int) d.getCurrentYCoordinate()][(int) Math.rint(d.getCurrentXCoordinate())-1] = 0;
                                             moveCompleted = true;
@@ -367,9 +375,9 @@ public class JFXArena extends Pane
                             @Override
                             public void run()
                             {
-                                Alert a = new Alert(AlertType.CONFIRMATION);
-                                a.setTitle("Game Over");
-                                a.setContentText("A droid reached the robot at (2,2)");
+                                Alert a = new Alert(AlertType.INFORMATION);
+                                a.setTitle("Game Over: A droid reached coordinates (2,2)");
+                                a.setContentText("Final Score: " + scoreLabel.getText());
                                 a.show();
                             }});
                             gridTracker[2][2] = 1;
@@ -379,21 +387,6 @@ public class JFXArena extends Pane
             }
         }
     }
-   
-        
-           
-        
-    /**
-     * Moves a robot image to a new grid position. This is highly rudimentary, as you will need
-     * many different robots in practice. This method currently just serves as a demonstration.
-     */
-    public void setRobotPosition(double x, double y)
-    {
-        robotX = 2;
-        robotY = 2;
-        requestLayout();
-    }
-    
     /**
      * Adds a callback for when the user clicks on a grid square within the arena. The callback 
      * (of type ArenaListener) receives the grid (x,y) coordinates as parameters to the 
@@ -417,22 +410,68 @@ public class JFXArena extends Pane
                     }
                     if(gridTracker[gridY][gridX] == 1)
                     {
-                        firingService.execute(new FiringCommand(gridX, gridY));
+                        long initialTime = System.currentTimeMillis();
+                        firingService.execute(new FiringCommand(gridX, gridY, initialTime));
+                    }
+                    else
+                    {
+                        Platform.runLater(new Runnable(){
+                            @Override
+                            public void run()
+                            {
+                                logger.appendText("Shot missed: No droid at coordinates (" + gridY + "," + gridX + ")\n");          
+                            }
+                        });
                     }
                 }
                 listeners.add(newListener);
                 });
         }
     }
+    
+    private class ScoreUpdater implements Runnable{
+        
+        @Override
+        public void run() {
+            while(true)
+            {
+                try
+                {
+                    synchronized(scoreMutex)
+                    {
+                        Thread.sleep(1000);
+                        if(isFiring)
+                        {
+                            scoreMutex.wait();
+                        }
+                        score += 10;
+                        Platform.runLater(new Runnable(){
+                            @Override
+                            public void run()
+                            {
+                                scoreLabel.setText(String.valueOf(score));
+                            }
+                        });
+                        scoreMutex.notify();
+                    }
+
+                }
+                catch(InterruptedException e){}
+            }
+        }
+        
+        
+    }
         
     private class FiringCommand implements Runnable{
         private int gridX;
         private int gridY;
-        
-        public FiringCommand(int gridX, int gridY)
+        private long initialTime;
+        public FiringCommand(int gridX, int gridY, long initialTime)
         {
             this.gridX = gridX;
             this.gridY = gridY;
+            this.initialTime = initialTime;
         }
         
         @Override
@@ -445,10 +484,27 @@ public class JFXArena extends Pane
                     try
                     {
                         Thread.sleep(1000);
+                        isFiring = true;
+                        long t = System.currentTimeMillis() - initialTime;
+                        synchronized(scoreMutex)
+                        {
+                            System.out.println("Score updated");
+                            score += (10 + 100*t/d.getDelay());
+                            scoreMutex.notify();
+                        }
+                        Platform.runLater(new Runnable(){
+                            @Override
+                            public void run()
+                            {
+                                logger.appendText("Shot fired: Droid at coordinates: (" + gridY + "," + gridX + ") was destroyed\n");  
+                                scoreLabel.setText(String.valueOf(score));
+                            }
+                        });
                         droidList.remove(d);
                         d.setIsAlive(false);
                         gridTracker[gridY][gridX] = 0;
                         gridTracker[(int)d.getCurrentYCoordinate()][(int)d.getCurrentXCoordinate()] = 0;
+                        isFiring = false;
                         requestLayout();
                     }
                     catch(InterruptedException e)

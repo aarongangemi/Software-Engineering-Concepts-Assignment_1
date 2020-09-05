@@ -14,8 +14,10 @@ public class App extends Application
     @Override
     public void start(Stage stage) 
     {
+        TextArea logger = new TextArea();
+        Label label = new Label("Score: 0");
         stage.setTitle("Example App (JavaFX)");
-        JFXArena arena = new JFXArena();
+        JFXArena arena = new JFXArena(logger, label);
         arena.addListener((x, y) ->
         {
             System.out.println("Arena click at (" + x + "," + y + ")");
@@ -24,7 +26,6 @@ public class App extends Application
         ToolBar toolbar = new ToolBar();
 //         Button btn1 = new Button("My Button 1");
 //         Button btn2 = new Button("My Button 2");
-        Label label = new Label("Score: 999");
 //         toolbar.getItems().addAll(btn1, btn2, label);
         toolbar.getItems().addAll(label);
         
@@ -33,10 +34,6 @@ public class App extends Application
 //             System.out.println("Button 1 pressed");
 //         });
                     
-        TextArea logger = new TextArea();
-        logger.appendText("Hello\n");
-        logger.appendText("World\n");
-        
         SplitPane splitPane = new SplitPane();
         splitPane.getItems().addAll(arena, logger);
         arena.setMinWidth(300.0);
