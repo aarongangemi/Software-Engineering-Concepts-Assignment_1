@@ -7,23 +7,18 @@ import javafx.scene.text.TextAlignment;
 
 import java.io.InputStream;
 import java.util.*;
-import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
-import javafx.animation.PathTransition;
 import javafx.application.Platform;
-import javafx.scene.Node;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Alert.AlertType;
 import javafx.scene.control.Label;
 import javafx.scene.control.TextArea;
-import javafx.scene.shape.Circle;
 
 /**
  * A JavaFX GUI element that displays a grid on which you can draw images, text and lines.
@@ -45,23 +40,27 @@ public class JFXArena extends Pane
     private Canvas canvas; // Used to provide a 'drawing surface'.
     private Object mutex;
     private int robotCounter = 1;
-    private LinkedBlockingQueue<Droid> droidList = new LinkedBlockingQueue<>();
+    private LinkedBlockingQueue<Droid> droidList;
     private List<ArenaListener> listeners = null;
     private boolean isStarted = false;
     private Object gameOverMutex = new Object();
-    private ScheduledExecutorService spawnDroidService = Executors.newScheduledThreadPool(12);
-    private SynchronousQueue firingQueue = new SynchronousQueue<>();
+    private ScheduledExecutorService spawnDroidService;
+    private SynchronousQueue firingQueue;
     private ExecutorService firingService;
     private TextArea logger;
     private Label scoreLabel;
     private int score = 0;
-    private Object scoreMutex = new Object();
+    private Object scoreMutex;
     private boolean isFiring = false;
     /**
      * Creates a new arena object, loading the robot image and initialising a drawing surface.
      */
     public JFXArena(TextArea logger, Label label)
     {
+        firingQueue = new SynchronousQueue<>();
+        scoreMutex = new Object();
+        droidList = new LinkedBlockingQueue<>();
+        spawnDroidService = Executors.newScheduledThreadPool(25);
         firingService = new ThreadPoolExecutor(4,8,1000, TimeUnit.MILLISECONDS, firingQueue);
         // Here's how you get an Image object from an image file (which you provide in the 
         // 'resources/' directory).
@@ -72,7 +71,6 @@ public class JFXArena extends Pane
                 gridTracker[row][column] = 0;
             }
         }
-        gridTracker[2][2] = 0;
         mutex = new Object();
         InputStream is = getClass().getClassLoader().getResourceAsStream(IMAGE_FILE);
         if(is == null)
@@ -84,7 +82,7 @@ public class JFXArena extends Pane
         canvas.widthProperty().bind(widthProperty());
         canvas.heightProperty().bind(heightProperty());
         getChildren().add(canvas);
-        ScheduleSpawn();
+        spawnDroidService.scheduleAtFixedRate(new SpawnDroid() , 0, 2000, TimeUnit.MILLISECONDS);
         Thread gameOverThread = new Thread(new GameOver(), "GameOver");
         gameOverThread.start();
         this.logger = logger;
@@ -134,9 +132,9 @@ public class JFXArena extends Pane
             Droid droid = new Droid(robotCounter);
             droid.setOldXCoordinate(XCoordinate);
             droid.setOldYCoordinate(YCoordinate);
-            droid.setCurrentXCoordinate(XCoordinate);
-            droid.setCurrentYCoordinate(YCoordinate);
-            gridTracker[(int)droid.getCurrentXCoordinate()][(int)droid.getCurrentYCoordinate()] = 1;
+            droid.setCurrentXCoordinate(YCoordinate);
+            droid.setCurrentYCoordinate(XCoordinate);
+            gridTracker[(int)droid.getCurrentYCoordinate()][(int)droid.getCurrentXCoordinate()] = 1;
             robotCounter++;
             droidList.add(droid);
             Thread t = new Thread(new MoveDroid(droid), String.valueOf(droid.getId()));
@@ -166,7 +164,7 @@ public class JFXArena extends Pane
                    {
                         try
                         {
-                            Thread.sleep(d.getDelay());
+                           Thread.sleep(d.getDelay());
                            Collections.shuffle(randomNumbersList);
                            for(int j = 0; j < randomNumbersList.size(); j++)
                            {
@@ -333,11 +331,11 @@ public class JFXArena extends Pane
                                 }
                                 
                             }
-                   Thread.sleep(5000);
                    }
                    catch(ArrayIndexOutOfBoundsException e)
                    {}
                    catch(InterruptedException c){
+                       Thread.currentThread().interrupt();
                    }
                    
                 }
@@ -347,10 +345,6 @@ public class JFXArena extends Pane
                 }
         }
     }   
-    
-    public void ScheduleSpawn(){
-        spawnDroidService.scheduleAtFixedRate(new SpawnDroid() , 1000, 2000, TimeUnit.MILLISECONDS);
-    }
     
     private class GameOver implements Runnable{
         @Override
@@ -508,7 +502,9 @@ public class JFXArena extends Pane
                         requestLayout();
                     }
                     catch(InterruptedException e)
-                    {}
+                    {
+                        Thread.currentThread().interrupt();
+                    }
                 }
             }
         }
