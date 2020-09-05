@@ -35,6 +35,7 @@ public class JFXArena extends Pane
     private int gridHeight = 5;
     private double robotX = 2.0;
     private double robotY = 2.0;
+    private Object gridUpdateLock;
     private int[][] gridTracker = new int[5][5];
     private double gridSquareSize; // Auto-calculated
     private Canvas canvas; // Used to provide a 'drawing surface'.
@@ -57,6 +58,7 @@ public class JFXArena extends Pane
      */
     public JFXArena(TextArea logger, Label label)
     {
+        gridUpdateLock = new Object();
         firingQueue = new SynchronousQueue<>();
         scoreMutex = new Object();
         droidList = new LinkedBlockingQueue<>();
@@ -178,8 +180,7 @@ public class JFXArena extends Pane
                                                 !d.getDroidStatus())
                                         { 
                                             
-                                                gridTracker[(int) d.getCurrentYCoordinate()][(int) d.getCurrentXCoordinate()] = 1;
-                                                gridTracker[(int)d.getCurrentYCoordinate()-1][(int) d.getCurrentXCoordinate()] = 1;
+                                                updateGridY(d,d.getCurrentYCoordinate()-1);
                                                 for(int row = 0; row < gridTracker.length; row++)
                                                     {
                                                          for(int column = 0; column < gridTracker[row].length;column++)
@@ -202,7 +203,7 @@ public class JFXArena extends Pane
                                                 d.setCurrentXCoordinate(d.getCurrentXCoordinate());
                                                 requestLayout();
                                                 d.setDroidStatus(false);
-                                                gridTracker[(int) Math.rint(d.getCurrentYCoordinate())+1][(int) d.getCurrentXCoordinate()] = 0;
+                                                updateOldYGridCoordinate(d, Math.rint(d.getCurrentYCoordinate())+1);
                                                 moveCompleted = true;
                                         }
                                         break;
@@ -210,8 +211,7 @@ public class JFXArena extends Pane
                                         if(d.getCurrentXCoordinate() - 1.0 >= 0.0 && 
                                                 gridTracker[(int) d.getCurrentYCoordinate()][(int) d.getCurrentXCoordinate()-1] == 0 && !d.getDroidStatus())
                                         {
-                                            gridTracker[(int) d.getCurrentYCoordinate()][(int) d.getCurrentXCoordinate()] = 1;
-                                            gridTracker[(int)d.getCurrentYCoordinate()][(int) d.getCurrentXCoordinate()-1] = 1;
+                                            updateGridX(d, d.getCurrentXCoordinate()-1);
                                             for(int row = 0; row < gridTracker.length; row++)
                                                 {
                                                      for(int column = 0; column < gridTracker[row].length;column++)
@@ -234,7 +234,7 @@ public class JFXArena extends Pane
                                             d.setCurrentYCoordinate(d.getCurrentYCoordinate());
                                             requestLayout();
                                             d.setDroidStatus(false);
-                                            gridTracker[(int) d.getCurrentYCoordinate()][(int) Math.rint(d.getCurrentXCoordinate())+1] = 0;
+                                            updateOldXGridCoordinate(d, Math.rint(d.getCurrentXCoordinate())+1);
                                             moveCompleted = true;
                                         }
                                         break;
@@ -243,8 +243,7 @@ public class JFXArena extends Pane
                                         if(d.getCurrentXCoordinate() + 1.0 <= 4.0 && 
                                                 gridTracker[(int) d.getCurrentYCoordinate()][(int) d.getCurrentXCoordinate()+1] == 0 && !d.getDroidStatus())
                                         {
-                                            gridTracker[(int) d.getCurrentYCoordinate()][(int) d.getCurrentXCoordinate()] = 1;
-                                            gridTracker[(int)d.getCurrentYCoordinate()][(int) d.getCurrentXCoordinate()+1] = 1;
+                                            updateGridX(d, d.getCurrentXCoordinate()+1);
                                             for(int row = 0; row < gridTracker.length; row++)
                                                 {
                                                      for(int column = 0; column < gridTracker[row].length;column++)
@@ -267,7 +266,7 @@ public class JFXArena extends Pane
                                             d.setCurrentYCoordinate(d.getCurrentYCoordinate());
                                             requestLayout();
                                             d.setDroidStatus(false);
-                                            gridTracker[(int) d.getCurrentYCoordinate()][(int) Math.rint(d.getCurrentXCoordinate())-1] = 0;
+                                            updateOldXGridCoordinate(d,Math.rint(d.getCurrentXCoordinate())-1);
                                             moveCompleted = true;
                                         }
                                         break;
@@ -276,8 +275,7 @@ public class JFXArena extends Pane
                                                 gridTracker[(int) d.getCurrentYCoordinate()+1][(int) d.getCurrentXCoordinate()] == 0 && !d.getDroidStatus())
                                         {
                                             d.setDroidStatus(true);
-                                            gridTracker[(int)d.getCurrentYCoordinate()][(int)d.getCurrentXCoordinate()] = 1;
-                                            gridTracker[(int)d.getCurrentYCoordinate()+1][(int)d.getCurrentXCoordinate()] = 1;
+                                            updateGridY(d,d.getCurrentYCoordinate()+1);
                                             for(int row = 0; row < gridTracker.length; row++)
                                                 {
                                                      for(int column = 0; column < gridTracker[row].length;column++)
@@ -299,7 +297,7 @@ public class JFXArena extends Pane
                                             d.setCurrentYCoordinate(Math.rint(d.getCurrentYCoordinate()));
                                             requestLayout();
                                             d.setDroidStatus(false);
-                                            gridTracker[(int) Math.rint(d.getCurrentYCoordinate())-1][(int) d.getCurrentXCoordinate()] = 0;
+                                            updateOldYGridCoordinate(d, Math.rint(d.getCurrentYCoordinate())-1);
                                             moveCompleted = true;
                                             
                                         }
@@ -453,9 +451,85 @@ public class JFXArena extends Pane
                 catch(InterruptedException e){}
             }
         }
-        
-        
     }
+    
+    public void updateGridX(Droid d, double updateXValue)
+    {
+        try
+        {
+            synchronized(gridUpdateLock)
+            {
+                if(gridTracker[(int) d.getCurrentYCoordinate()][(int)updateXValue] == 1)
+                {
+                    gridUpdateLock.wait();
+                }
+                gridTracker[(int) d.getCurrentYCoordinate()][(int) d.getCurrentXCoordinate()] = 1;
+                gridTracker[(int) d.getCurrentYCoordinate()][(int) updateXValue] = 1;
+                gridUpdateLock.notify();
+            }
+        }
+        catch(InterruptedException e)
+        {}
+    }
+    
+    public void updateGridY(Droid d, double updateYValue)
+    {
+        try
+        {
+            synchronized(gridUpdateLock)
+            {
+                if(gridTracker[(int) updateYValue][(int) d.getCurrentXCoordinate()] == 1)
+                {
+                    gridUpdateLock.wait();
+                }
+                gridTracker[(int) d.getCurrentYCoordinate()][(int) d.getCurrentXCoordinate()] = 1;
+                gridTracker[(int) updateYValue][(int) d.getCurrentXCoordinate()] = 1;
+                gridUpdateLock.notify();
+            }
+        }
+        catch(InterruptedException e)
+        { 
+        }
+    }
+    
+    public void updateOldYGridCoordinate(Droid d, double updateYValue)
+    {
+        try
+        {
+            synchronized(gridUpdateLock)
+            {
+                if(gridTracker[(int) updateYValue][(int) d.getCurrentXCoordinate()] == 0)
+                {
+                    gridUpdateLock.wait();
+                }
+                gridTracker[(int) updateYValue][(int) d.getCurrentXCoordinate()] = 0;
+                gridUpdateLock.notify();
+            }
+        }
+        catch(InterruptedException e)
+        { 
+        }
+    }
+    
+    public void updateOldXGridCoordinate(Droid d, double updateXValue)
+    {
+        try
+        {
+            synchronized(gridUpdateLock)
+            {
+                if(gridTracker[(int) d.getCurrentYCoordinate()][(int) updateXValue] == 0)
+                {
+                    gridUpdateLock.wait();
+                }
+                gridTracker[(int) d.getCurrentYCoordinate()][(int) updateXValue] = 0;
+                gridUpdateLock.notify();
+            }
+        }
+        catch(InterruptedException e)
+        { }
+    }
+    
+    
         
     private class FiringCommand implements Runnable{
         private int gridX;
