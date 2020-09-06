@@ -4,7 +4,6 @@ import javafx.scene.image.Image;
 import javafx.scene.layout.Pane;
 import javafx.scene.paint.Color;
 import javafx.scene.text.TextAlignment;
-
 import java.io.InputStream;
 import java.util.*;
 import java.util.concurrent.ExecutorService;
@@ -62,7 +61,7 @@ public class JFXArena extends Pane
         firingQueue = new SynchronousQueue<>();
         scoreMutex = new Object();
         droidList = new LinkedBlockingQueue<>();
-        spawnDroidService = Executors.newScheduledThreadPool(25);
+        spawnDroidService = Executors.newScheduledThreadPool(10);
         firingService = new ThreadPoolExecutor(4,8,1000, TimeUnit.MILLISECONDS, firingQueue);
         // Here's how you get an Image object from an image file (which you provide in the 
         // 'resources/' directory).
@@ -144,7 +143,8 @@ public class JFXArena extends Pane
         }
     }
     
-    private class MoveDroid implements Runnable{
+    private class MoveDroid implements Runnable
+    {
         private GraphicsContext gfx = canvas.getGraphicsContext2D();
         private List<Integer> randomNumbersList = new ArrayList();
         private boolean moveCompleted = false;
