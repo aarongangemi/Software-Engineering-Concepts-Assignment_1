@@ -330,8 +330,6 @@ public class JFXArena extends Pane
                                 
                             }
                    }
-                   catch(ArrayIndexOutOfBoundsException e)
-                   {}
                    catch(InterruptedException c){
                        Thread.currentThread().interrupt();
                    }
