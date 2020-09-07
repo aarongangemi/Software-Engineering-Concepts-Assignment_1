@@ -4,13 +4,29 @@ import javafx.scene.control.*;
 import javafx.scene.layout.*;
 import javafx.stage.Stage;
 
+/****************************************
+ * Purpose: Stores the main function to start the application
+ * @author Aaron Gangemi
+ * Date Modified: 07/09/2020
+ */
 public class App extends Application 
 {
+    /****************************************
+    * Purpose: Launch the application
+    * @author Aaron Gangemi
+    * @param args
+    */
     public static void main(String[] args) 
     {
         launch();        
     }
     
+    /****************************************
+    * Purpose: Create the GUI elements required for the program.
+    *          Also makes a call to JFX arena
+    * @author Aaron Gangemi
+    * @param stage
+    */
     @Override
     public void start(Stage stage) 
     {
