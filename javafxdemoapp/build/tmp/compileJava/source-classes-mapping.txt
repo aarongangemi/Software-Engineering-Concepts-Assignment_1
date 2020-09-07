@@ -1,17 +1,21 @@
-Droid.java
- Droid
 ArenaListener.java
  ArenaListener
 App.java
  App
+GridUpdater.java
+ GridUpdater
 JFXArena.java
  JFXArena
  JFXArena$1
- JFXArena$FiringCommand
- JFXArena$FiringCommand$1
- JFXArena$GameOver
- JFXArena$GameOver$1
- JFXArena$MoveDroid
- JFXArena$ScoreUpdater
- JFXArena$ScoreUpdater$1
  JFXArena$SpawnDroid
+GameController.java
+ GameController
+ GameController$FiringCommand
+ GameController$FiringCommand$1
+ GameController$GameOver
+ GameController$GameOver$1
+ GameController$ScoreUpdater
+ GameController$ScoreUpdater$1
+Droid.java
+ Droid
+ Droid$MoveDroid

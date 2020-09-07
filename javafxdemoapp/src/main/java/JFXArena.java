@@ -34,7 +34,6 @@ public class JFXArena extends Pane
     private int gridHeight = 5;
     private double robotX = 2.0;
     private double robotY = 2.0;
-    private Object gridUpdateLock;
     private int[][] gridTracker = new int[5][5];
     private double gridSquareSize; // Auto-calculated
     private Canvas canvas; // Used to provide a 'drawing surface'.
@@ -42,24 +41,20 @@ public class JFXArena extends Pane
     private int robotCounter = 1;
     private LinkedBlockingQueue<Droid> droidList;
     private List<ArenaListener> listeners = null;
-    private boolean isStarted = false;
-    private Object gameOverMutex = new Object();
     private ScheduledExecutorService spawnDroidService;
     private SynchronousQueue firingQueue;
     private ExecutorService firingService;
     private TextArea logger;
+    private Object gameOverMutex;
     private Label scoreLabel;
-    private int score = 0;
-    private Object scoreMutex;
-    private boolean isFiring = false;
+    private GameController game;
     /**
      * Creates a new arena object, loading the robot image and initialising a drawing surface.
      */
     public JFXArena(TextArea logger, Label label)
     {
-        gridUpdateLock = new Object();
+        gameOverMutex = new Object();
         firingQueue = new SynchronousQueue<>();
-        scoreMutex = new Object();
         droidList = new LinkedBlockingQueue<>();
         spawnDroidService = Executors.newScheduledThreadPool(10);
         firingService = new ThreadPoolExecutor(4,8,1000, TimeUnit.MILLISECONDS, firingQueue);
@@ -83,18 +78,21 @@ public class JFXArena extends Pane
         canvas.widthProperty().bind(widthProperty());
         canvas.heightProperty().bind(heightProperty());
         getChildren().add(canvas);
-        spawnDroidService.scheduleAtFixedRate(new SpawnDroid() , 0, 2000, TimeUnit.MILLISECONDS);
-        Thread gameOverThread = new Thread(new GameOver(), "GameOver");
-        gameOverThread.start();
+        spawnDroidService.scheduleAtFixedRate(new SpawnDroid(this) , 1000, 1500, TimeUnit.MILLISECONDS);
         this.logger = logger;
         this.scoreLabel = label;
-        Thread scoreThread = new Thread(new ScoreUpdater(),"ScoreThread");
-        scoreThread.start();
+        game = new GameController(this);
     }
     
     private class SpawnDroid implements Runnable{
         private InputStream robotEnemyInputStream = getClass().getClassLoader().getResourceAsStream("rg1024-robot-carrying-things-4.png");
         private GraphicsContext gfx = canvas.getGraphicsContext2D();
+        private JFXArena arena;
+        public SpawnDroid(JFXArena arena)
+        {
+            this.arena = arena;
+        }
+        
         @Override
         public void run()
         {
@@ -103,34 +101,29 @@ public class JFXArena extends Pane
                 if(gridTracker[0][0] == 0 && gridTracker[2][2] != 1)
                 {
                     SetDroidCoordinates(0,0);
-                    requestLayout();
-                    System.out.println("0,0 is empty");
+                    refreshLayout();
                 }
                 if(gridTracker[4][0] == 0 && gridTracker[2][2] != 1)
                 {
                     SetDroidCoordinates(4,0);
-                    requestLayout();
-                    System.out.println("4,0 is empty");
+                    refreshLayout();
                 }
                 if(gridTracker[0][4] == 0 && gridTracker[2][2] != 1)
                 {
                     SetDroidCoordinates(0,4);
-                    requestLayout();
-                    System.out.println("0,4 is empty");
+                    refreshLayout();
                 }
                 if(gridTracker[4][4] == 0 && gridTracker[2][2] != 1)
                 {
                     SetDroidCoordinates(4,4);
-                    requestLayout();
-                    System.out.println("4,4 is empty");
+                    refreshLayout();
                 }
                 mutex.notify();
             }
-             
         }
         private void SetDroidCoordinates(int XCoordinate, int YCoordinate)
         {
-            Droid droid = new Droid(robotCounter);
+            Droid droid = new Droid(robotCounter, arena);
             droid.setOldXCoordinate(XCoordinate);
             droid.setOldYCoordinate(YCoordinate);
             droid.setCurrentXCoordinate(YCoordinate);
@@ -138,245 +131,14 @@ public class JFXArena extends Pane
             gridTracker[(int)droid.getCurrentYCoordinate()][(int)droid.getCurrentXCoordinate()] = 1;
             robotCounter++;
             droidList.add(droid);
-            Thread t = new Thread(new MoveDroid(droid), String.valueOf(droid.getId()));
-            t.start();
         }
     }
     
-    private class MoveDroid implements Runnable
+    public void refreshLayout()
     {
-        private GraphicsContext gfx = canvas.getGraphicsContext2D();
-        private List<Integer> randomNumbersList = new ArrayList();
-        private boolean moveCompleted = false;
-        private long currentTimePassed = System.currentTimeMillis();
-        private Droid d;
-        public MoveDroid(Droid d)
-        {
-            this.d = d;
-        }
-        
-        @Override
-        public void run(){
-           randomNumbersList.add(1);
-           randomNumbersList.add(2);
-           randomNumbersList.add(3);
-           randomNumbersList.add(4);
-           
-                   while(d.getIsAlive() == true && gridTracker[2][2] != 1)
-                   {
-                        try
-                        {
-                           Thread.sleep(d.getDelay());
-                           Collections.shuffle(randomNumbersList);
-                           for(int j = 0; j < randomNumbersList.size(); j++)
-                           {
-                                int randomNumber = randomNumbersList.get(j);
-                                
-                                switch(randomNumber)
-                                {
-                                    case 2: //Move Up
-                                        if(d.getCurrentYCoordinate() - 1.0 >= 0.0 && 
-                                                gridTracker[(int) d.getCurrentYCoordinate()-1][(int) d.getCurrentXCoordinate()] == 0 &&
-                                                !d.getDroidStatus())
-                                        { 
-                                            
-                                                updateGridY(d,d.getCurrentYCoordinate()-1);
-                                                for(int row = 0; row < gridTracker.length; row++)
-                                                    {
-                                                         for(int column = 0; column < gridTracker[row].length;column++)
-                                                         {
-                                                             System.out.print(gridTracker[row][column]);
-                                                         }
-                                                         System.out.println("");
-                                                    }
-                                                System.out.println("..............................................");
-                                                for(int i = 0; i < 10; i++)
-                                                {
-                                                    d.setCurrentYCoordinate(d.getCurrentYCoordinate()-0.1);
-                                                    requestLayout();
-                                                    Thread.sleep(50);
-                                                }
-                                                d.setDroidStatus(true);
-                                                d.setOldXCoordinate(d.getCurrentXCoordinate());
-                                                d.setOldYCoordinate(Math.rint(d.getCurrentYCoordinate()+1));
-                                                d.setCurrentYCoordinate(Math.rint(d.getCurrentYCoordinate()));
-                                                d.setCurrentXCoordinate(d.getCurrentXCoordinate());
-                                                requestLayout();
-                                                d.setDroidStatus(false);
-                                                updateOldYGridCoordinate(d, Math.rint(d.getCurrentYCoordinate())+1);
-                                                moveCompleted = true;
-                                        }
-                                        break;
-                                    case 1: //Move Left
-                                        if(d.getCurrentXCoordinate() - 1.0 >= 0.0 && 
-                                                gridTracker[(int) d.getCurrentYCoordinate()][(int) d.getCurrentXCoordinate()-1] == 0 && !d.getDroidStatus())
-                                        {
-                                            updateGridX(d, d.getCurrentXCoordinate()-1);
-                                            for(int row = 0; row < gridTracker.length; row++)
-                                                {
-                                                     for(int column = 0; column < gridTracker[row].length;column++)
-                                                     {
-                                                         System.out.print(gridTracker[row][column]);
-                                                     }
-                                                     System.out.println("");
-                                                }
-                                            System.out.println("..............................................");
-                                            for(int i = 0; i < 10; i++)
-                                            {
-                                                d.setCurrentXCoordinate(d.getCurrentXCoordinate()-0.1);
-                                                requestLayout();
-                                                Thread.sleep(50);
-                                            }
-                                            d.setDroidStatus(true);
-                                            d.setOldXCoordinate(Math.rint(d.getCurrentXCoordinate()+1));
-                                            d.setOldYCoordinate(d.getCurrentYCoordinate());
-                                            d.setCurrentXCoordinate(Math.rint(d.getCurrentXCoordinate()));
-                                            d.setCurrentYCoordinate(d.getCurrentYCoordinate());
-                                            requestLayout();
-                                            d.setDroidStatus(false);
-                                            updateOldXGridCoordinate(d, Math.rint(d.getCurrentXCoordinate())+1);
-                                            moveCompleted = true;
-                                        }
-                                        break;
-                                    case 3: //Move Right
-                                        
-                                        if(d.getCurrentXCoordinate() + 1.0 <= 4.0 && 
-                                                gridTracker[(int) d.getCurrentYCoordinate()][(int) d.getCurrentXCoordinate()+1] == 0 && !d.getDroidStatus())
-                                        {
-                                            updateGridX(d, d.getCurrentXCoordinate()+1);
-                                            for(int row = 0; row < gridTracker.length; row++)
-                                                {
-                                                     for(int column = 0; column < gridTracker[row].length;column++)
-                                                     {
-                                                         System.out.print(gridTracker[row][column]);
-                                                     }
-                                                     System.out.println("");
-                                                }
-                                            System.out.println("..............................................");
-                                           for(int i = 0; i < 10; i++)
-                                            {
-                                                d.setCurrentXCoordinate(d.getCurrentXCoordinate()+0.1);
-                                                requestLayout();
-                                                Thread.sleep(50);
-                                            }
-                                            d.setDroidStatus(true);
-                                            d.setOldXCoordinate(Math.rint(d.getCurrentXCoordinate()-1));
-                                            d.setOldYCoordinate(d.getCurrentYCoordinate());
-                                            d.setCurrentXCoordinate(Math.rint(d.getCurrentXCoordinate()));
-                                            d.setCurrentYCoordinate(d.getCurrentYCoordinate());
-                                            requestLayout();
-                                            d.setDroidStatus(false);
-                                            updateOldXGridCoordinate(d,Math.rint(d.getCurrentXCoordinate())-1);
-                                            moveCompleted = true;
-                                        }
-                                        break;
-                                    case 4: //Move Down
-                                        if(d.getCurrentYCoordinate() + 1.0 <= 4.0 && 
-                                                gridTracker[(int) d.getCurrentYCoordinate()+1][(int) d.getCurrentXCoordinate()] == 0 && !d.getDroidStatus())
-                                        {
-                                            d.setDroidStatus(true);
-                                            updateGridY(d,d.getCurrentYCoordinate()+1);
-                                            for(int row = 0; row < gridTracker.length; row++)
-                                                {
-                                                     for(int column = 0; column < gridTracker[row].length;column++)
-                                                     {
-                                                         System.out.print(gridTracker[row][column]);
-                                                     }
-                                                     System.out.println("");
-                                                }
-                                            System.out.println("..............................................");
-                                                for(int i = 0; i < 10; i++)
-                                                {
-                                                    d.setCurrentYCoordinate(d.getCurrentYCoordinate()+0.1);
-                                                    requestLayout();
-                                                    Thread.sleep(50);
-                                                }
-                                            d.setOldXCoordinate(d.getCurrentXCoordinate());
-                                            d.setOldYCoordinate(Math.rint(d.getCurrentYCoordinate()-1));
-                                            d.setCurrentXCoordinate(d.getCurrentXCoordinate());
-                                            d.setCurrentYCoordinate(Math.rint(d.getCurrentYCoordinate()));
-                                            requestLayout();
-                                            d.setDroidStatus(false);
-                                            updateOldYGridCoordinate(d, Math.rint(d.getCurrentYCoordinate())-1);
-                                            moveCompleted = true;
-                                            
-                                        }
-                                        break;
-                                }
-                                if(moveCompleted)
-                                {
-                                    if(gridTracker[2][2] == 1)
-                                    {
-                                        synchronized(gameOverMutex)
-                                        {
-                                           gameOverMutex.notify();
-                                           
-                                        }
-                                        Thread.currentThread().interrupt();
-                                    }
-                                    
-                                    
-                                    moveCompleted = false;
-                                    break;
-                                }
-                            }
-                           
-                            if(gridTracker[0][0] == 0 || gridTracker[4][0] == 0 || gridTracker[0][4] == 0 || gridTracker[4][4] == 0 )
-                            {
-                                synchronized(mutex)
-                                {
-                                   mutex.wait();
-                                }
-                                
-                            }
-                   }
-                   catch(InterruptedException c){
-                       Thread.currentThread().interrupt();
-                   }
-                   
-                }
-                if(d.getIsAlive() == false)
-                {
-                    Thread.currentThread().interrupt();
-                }
-        }
-    }   
-    
-    private class GameOver implements Runnable{
-        @Override
-        public void run()
-        {
-            while(true)
-            {
-                    synchronized(gameOverMutex)
-                    {
-                        if(gridTracker[2][2]==0)
-                        {
-                            try
-                            {
-                               gameOverMutex.wait(); 
-                            }
-                            catch(InterruptedException e){}
-                        }
-                            spawnDroidService.shutdown();
-                            droidList.clear();
-                            requestLayout();
-                            Platform.runLater(new Runnable(){
-                            @Override
-                            public void run()
-                            {
-                                Alert a = new Alert(AlertType.INFORMATION);
-                                a.setTitle("Game Over: A droid reached coordinates (2,2)");
-                                a.setContentText("Final Score: " + scoreLabel.getText());
-                                a.show();
-                            }});
-                            gridTracker[2][2] = 1;
-                            break;
-                        }
-                
-            }
-        }
+        requestLayout();
     }
+    
     /**
      * Adds a callback for when the user clicks on a grid square within the arena. The callback 
      * (of type ArenaListener) receives the grid (x,y) coordinates as parameters to the 
@@ -401,7 +163,7 @@ public class JFXArena extends Pane
                     if(gridTracker[gridY][gridX] == 1)
                     {
                         long initialTime = System.currentTimeMillis();
-                        firingService.execute(new FiringCommand(gridX, gridY, initialTime));
+                        firingService.execute(game.createNewCommand(gridX, gridY, initialTime));
                     }
                     else
                     {
@@ -419,169 +181,47 @@ public class JFXArena extends Pane
         }
     }
     
-    private class ScoreUpdater implements Runnable{
-        
-        @Override
-        public void run() {
-            while(true)
-            {
-                try
-                {
-                    synchronized(scoreMutex)
-                    {
-                        Thread.sleep(1000);
-                        if(isFiring)
-                        {
-                            scoreMutex.wait();
-                        }
-                        score += 10;
-                        Platform.runLater(new Runnable(){
-                            @Override
-                            public void run()
-                            {
-                                scoreLabel.setText(String.valueOf(score));
-                            }
-                        });
-                        scoreMutex.notify();
-                    }
-
-                }
-                catch(InterruptedException e){}
-            }
-        }
-    }
-    
-    public void updateGridX(Droid d, double updateXValue)
+    public int[][] getGridTracker()
     {
-        try
-        {
-            synchronized(gridUpdateLock)
-            {
-                if(gridTracker[(int) d.getCurrentYCoordinate()][(int)updateXValue] == 1)
-                {
-                    gridUpdateLock.wait();
-                }
-                gridTracker[(int) d.getCurrentYCoordinate()][(int) d.getCurrentXCoordinate()] = 1;
-                gridTracker[(int) d.getCurrentYCoordinate()][(int) updateXValue] = 1;
-                gridUpdateLock.notify();
-            }
-        }
-        catch(InterruptedException e)
-        {}
+        return gridTracker;
     }
     
-    public void updateGridY(Droid d, double updateYValue)
+    public Object getMutex()
     {
-        try
-        {
-            synchronized(gridUpdateLock)
-            {
-                if(gridTracker[(int) updateYValue][(int) d.getCurrentXCoordinate()] == 1)
-                {
-                    gridUpdateLock.wait();
-                }
-                gridTracker[(int) d.getCurrentYCoordinate()][(int) d.getCurrentXCoordinate()] = 1;
-                gridTracker[(int) updateYValue][(int) d.getCurrentXCoordinate()] = 1;
-                gridUpdateLock.notify();
-            }
-        }
-        catch(InterruptedException e)
-        { 
-        }
+        return mutex;
     }
     
-    public void updateOldYGridCoordinate(Droid d, double updateYValue)
+    public Object getGameOverMutex()
     {
-        try
-        {
-            synchronized(gridUpdateLock)
-            {
-                if(gridTracker[(int) updateYValue][(int) d.getCurrentXCoordinate()] == 0)
-                {
-                    gridUpdateLock.wait();
-                }
-                gridTracker[(int) updateYValue][(int) d.getCurrentXCoordinate()] = 0;
-                gridUpdateLock.notify();
-            }
-        }
-        catch(InterruptedException e)
-        { 
-        }
+        return gameOverMutex;
     }
     
-    public void updateOldXGridCoordinate(Droid d, double updateXValue)
+    public Canvas getCanvas()
     {
-        try
-        {
-            synchronized(gridUpdateLock)
-            {
-                if(gridTracker[(int) d.getCurrentYCoordinate()][(int) updateXValue] == 0)
-                {
-                    gridUpdateLock.wait();
-                }
-                gridTracker[(int) d.getCurrentYCoordinate()][(int) updateXValue] = 0;
-                gridUpdateLock.notify();
-            }
-        }
-        catch(InterruptedException e)
-        { }
+        return canvas;
     }
     
-    
-        
-    private class FiringCommand implements Runnable{
-        private int gridX;
-        private int gridY;
-        private long initialTime;
-        public FiringCommand(int gridX, int gridY, long initialTime)
-        {
-            this.gridX = gridX;
-            this.gridY = gridY;
-            this.initialTime = initialTime;
-        }
-        
-        @Override
-        public void run() 
-        {
-            for(Droid d : droidList)
-            {
-                if(d.getCurrentXCoordinate() == gridX && d.getCurrentYCoordinate() == gridY && d.getDroidStatus() == false)
-                {
-                    try
-                    {
-                        Thread.sleep(1000);
-                        isFiring = true;
-                        long t = System.currentTimeMillis() - initialTime;
-                        synchronized(scoreMutex)
-                        {
-                            System.out.println("Score updated");
-                            score += (10 + 100*t/d.getDelay());
-                            scoreMutex.notify();
-                        }
-                        Platform.runLater(new Runnable(){
-                            @Override
-                            public void run()
-                            {
-                                logger.appendText("Shot fired: Droid at coordinates: (" + gridY + "," + gridX + ") was destroyed\n");  
-                                scoreLabel.setText(String.valueOf(score));
-                            }
-                        });
-                        droidList.remove(d);
-                        d.setIsAlive(false);
-                        gridTracker[gridY][gridX] = 0;
-                        gridTracker[(int)d.getCurrentYCoordinate()][(int)d.getCurrentXCoordinate()] = 0;
-                        isFiring = false;
-                        requestLayout();
-                    }
-                    catch(InterruptedException e)
-                    {
-                        Thread.currentThread().interrupt();
-                    }
-                }
-            }
-        }
-        
+    public ScheduledExecutorService getSpawnDroidService()
+    {
+        return spawnDroidService;
     }
+    
+    public LinkedBlockingQueue<Droid> getDroidList()
+    {
+        return droidList;
+    }
+    
+    public Label getScoreLabel()
+    {
+        return scoreLabel;
+    }
+    
+    public TextArea getLogger()
+    {
+        return logger;
+    }
+        
+    
         
     /**
      * This method is called in order to redraw the screen, either because the user is manipulating 
@@ -699,26 +339,5 @@ public class JFXArena extends Pane
         gfx.strokeText(label, (gridX + 0.5) * gridSquareSize, (gridY + 1.0) * gridSquareSize);
     }
     
-    /** 
-     * Draws a (slightly clipped) line between two grid coordinates.
-     *     
-     * You shouldn't need to modify this method.
-     */
-    private void drawLine(GraphicsContext gfx, double gridX1, double gridY1, 
-                                               double gridX2, double gridY2)
-    {
-        gfx.setStroke(Color.RED);
-        
-        // Recalculate the starting coordinate to be one unit closer to the destination, so that it
-        // doesn't overlap with any image appearing in the starting grid cell.
-        final double radius = 0.5;
-        double angle = Math.atan2(gridY2 - gridY1, gridX2 - gridX1);
-        double clippedGridX1 = gridX1 + Math.cos(angle) * radius;
-        double clippedGridY1 = gridY1 + Math.sin(angle) * radius;
-        
-        gfx.strokeLine((clippedGridX1 + 0.5) * gridSquareSize, 
-                       (clippedGridY1 + 0.5) * gridSquareSize, 
-                       (gridX2 + 0.5) * gridSquareSize, 
-                       (gridY2 + 0.5) * gridSquareSize);
-    }
+    
 }
