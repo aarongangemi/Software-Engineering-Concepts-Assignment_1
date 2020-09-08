@@ -4,6 +4,9 @@ App.java
  App
 GridUpdater.java
  GridUpdater
+Droid.java
+ Droid
+ Droid$MoveDroid
 JFXArena.java
  JFXArena
  JFXArena$1
@@ -16,6 +19,3 @@ GameController.java
  GameController$GameOver$1
  GameController$ScoreUpdater
  GameController$ScoreUpdater$1
-Droid.java
- Droid
- Droid$MoveDroid

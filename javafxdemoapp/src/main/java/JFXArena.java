@@ -85,7 +85,7 @@ public class JFXArena extends Pane
         canvas.heightProperty().bind(heightProperty());
         getChildren().add(canvas);
         // schedule droid service to run after time specified
-        spawnDroidService.scheduleAtFixedRate(new SpawnDroid(this) , 1000, 2000, TimeUnit.MILLISECONDS);
+        spawnDroidService.scheduleAtFixedRate(new SpawnDroid(this) , 1000, 1000, TimeUnit.MILLISECONDS);
         // set logged and label
         this.logger = logger;
         this.scoreLabel = label;

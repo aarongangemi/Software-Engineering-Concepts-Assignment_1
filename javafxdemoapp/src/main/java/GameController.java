@@ -131,8 +131,9 @@ public class GameController
                     // find the droid that is in the current coordinates
                     try
                     {
-                        Thread.sleep(1000);
+                        
                         // wait 1 second
+                        Thread.sleep(1000);
                         isFiring = true;
                         // set droid to firing
                         long t = System.currentTimeMillis() - initialTime;
@@ -170,6 +171,7 @@ public class GameController
                         isFiring = false;
                         //refresh GUI again
                         arena.refreshLayout();
+                        
                     }
                     catch(InterruptedException e)
                     {}

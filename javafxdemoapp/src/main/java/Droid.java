@@ -14,8 +14,6 @@ public class Droid
     private int delay;
     private double currentXCoordinate;
     private double currentYCoordinate;
-    private double newXCoordinate;
-    private double newYCoordinate;
     private boolean droidMoving;
     private boolean isAlive;
     private JFXArena arena;
